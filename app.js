@@ -8,7 +8,8 @@ let isRecoveryMode = false;
 document.addEventListener("DOMContentLoaded", async () => {
   renderSocialLinks(); initCanvasBackground();
   await loadSettings(); await loadItems();
-  if (window.location.hash.includes("type=recovery")) {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("mode") === "resetPassword" && params.get("oobCode")) {
     isRecoveryMode = true;
     document.getElementById("adminAuthModal").classList.remove("hidden");
     document.getElementById("adminAuthEmail").closest("div").classList.add("hidden");
@@ -71,29 +72,83 @@ function openAdminAuthModal(){if(!document.getElementById("sidebar").classList.c
 function closeAdminAuthModal(){document.getElementById("adminAuthModal").classList.add("hidden");document.getElementById("authErrorMsg").classList.add("hidden");}
 async function handleForgotPassword(){
  const email=document.getElementById("adminAuthEmail").value.trim();
- if(!email){const msg=document.getElementById("authErrorMsg");msg.classList.remove("hidden");msg.innerText="আগে আপনার ইমেইল লিখুন, তারপর Forgot Password চাপুন।";return;}
- const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname});
- const msg=document.getElementById("authErrorMsg");msg.classList.remove("hidden");
- msg.innerText=error?"রিকভারি ইমেইল পাঠানো যায়নি। Supabase Email সেটিংস যাচাই করুন।":"ইমেইলটি Supabase-এ থাকলে পাসওয়ার্ড রিসেটের লিংক পাঠানো হয়েছে। Inbox/Spam দেখুন।";
+ const msg=document.getElementById("authErrorMsg");
+ msg.classList.remove("hidden");msg.classList.remove("text-green-400");msg.classList.add("text-red-400");
+ if(!email){msg.innerText="আগে আপনার ইমেইল লিখুন, তারপর Forgot Password চাপুন।";return;}
+ if(email.toLowerCase()!==ADMIN_EMAIL){msg.innerText="এই ইমেইলের জন্য পাসওয়ার্ড রিসেট অনুমোদিত নয়।";return;}
+ try{
+  await firebaseAuth.sendPasswordResetEmail(email,{url:window.location.origin+window.location.pathname,handleCodeInApp:false});
+  msg.classList.remove("text-red-400");msg.classList.add("text-green-400");
+  msg.innerText="পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে। Inbox/Spam দেখুন।";
+  showToast("রিসেট ইমেইল পাঠানো হয়েছে");
+ }catch(error){msg.innerText="রিসেট ইমেইল পাঠানো যায়নি: "+friendlyAuthError(error);}
+}
+function friendlyAuthError(error){
+ const code=error?.code||"";
+ const messages={
+  "auth/invalid-credential":"ইমেইল বা পাসওয়ার্ড ভুল।",
+  "auth/invalid-login-credentials":"ইমেইল বা পাসওয়ার্ড ভুল।",
+  "auth/user-not-found":"এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।",
+  "auth/wrong-password":"পাসওয়ার্ড ভুল।",
+  "auth/too-many-requests":"অনেকবার চেষ্টা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।",
+  "auth/network-request-failed":"ইন্টারনেট সংযোগ যাচাই করুন।",
+  "auth/invalid-email":"সঠিক ইমেইল লিখুন।",
+  "auth/weak-password":"পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের দিন।",
+  "auth/expired-action-code":"রিসেট লিংকের মেয়াদ শেষ। নতুন লিংক নিন।",
+  "auth/invalid-action-code":"রিসেট লিংকটি সঠিক নয় বা মেয়াদ শেষ।"
+ };
+ return messages[code]||"সমস্যা হয়েছে। ইন্টারনেট ও Firebase Authentication সেটিংস যাচাই করুন।";
 }
 async function handleAdminLogin(e){
- e.preventDefault();const email=document.getElementById("adminAuthEmail").value.trim(),password=document.getElementById("adminAuthPass").value;
- if(isRecoveryMode){
-  const msg=document.getElementById("authErrorMsg");
-  if(password.length<8){msg.classList.remove("hidden");msg.innerText="নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।";return;}
-  const {error}=await db.auth.updateUser({password});msg.classList.remove("hidden");
-  if(error){msg.innerText="পাসওয়ার্ড পরিবর্তন হয়নি: রিসেট লিংকটি আবার ব্যবহার করুন।";return;}
-  isRecoveryMode=false;msg.classList.remove("text-red-400");msg.classList.add("text-green-400");msg.innerText="পাসওয়ার্ড পরিবর্তন হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।";
-  document.getElementById("adminAuthEmail").closest("div").classList.remove("hidden");document.getElementById("adminAuthPass").value="";document.getElementById("adminAuthPass").placeholder="পাসওয়ার্ড লিখুন...";document.querySelector("#adminAuthModal h3").textContent="এডমিন প্রবেশের অনুমতি";document.querySelector("#adminAuthModal form button[type=submit]").textContent="লগইন করুন";history.replaceState(null,"",window.location.pathname);return;
+ e.preventDefault();
+ const email=document.getElementById("adminAuthEmail").value.trim().toLowerCase();
+ const password=document.getElementById("adminAuthPass").value;
+ const btn=document.querySelector("#adminAuthModal form button[type=submit]");
+ const msg=document.getElementById("authErrorMsg");
+ const originalText=isRecoveryMode?"পাসওয়ার্ড সেভ করুন":"লগইন করুন";
+ btn.disabled=true;btn.textContent=isRecoveryMode?"সেভ হচ্ছে…":"লগইন হচ্ছে…";
+ msg.classList.add("hidden");
+ try{
+  if(isRecoveryMode){
+   if(password.length<8)throw new Error("পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের দিন।");
+   const code=new URLSearchParams(window.location.search).get("oobCode");
+   if(!code)throw new Error("রিসেট লিংকটি অসম্পূর্ণ। নতুন রিসেট লিংক নিন।");
+   await firebaseAuth.confirmPasswordReset(code,password);
+   isRecoveryMode=false;
+   history.replaceState(null,"",window.location.pathname);
+   document.getElementById("adminAuthEmail").closest("div").classList.remove("hidden");
+   document.getElementById("adminAuthPass").value="";
+   document.getElementById("adminAuthPass").placeholder="পাসওয়ার্ড লিখুন...";
+   document.querySelector("#adminAuthModal h3").textContent="এডমিন প্রবেশের অনুমতি";
+   btn.textContent="লগইন করুন";
+   showToast("পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে");
+   msg.classList.remove("hidden","text-red-400");msg.classList.add("text-green-400");
+   msg.innerText="পাসওয়ার্ড পরিবর্তন হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।";
+   return;
+  }
+  if(email!==ADMIN_EMAIL)throw new Error("এই ইমেইলে Admin অনুমতি নেই।");
+  await firebaseAuth.signInWithEmailAndPassword(email,password);
+  const user=firebaseAuth.currentUser;
+  if(!user||user.email?.toLowerCase()!==ADMIN_EMAIL){
+   await firebaseAuth.signOut();
+   throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
+  }
+  closeAdminAuthModal();
+  document.getElementById("adminDashboardModal").classList.remove("hidden");
+  showToast("Login Successful! এডমিন প্যানেলে স্বাগতম");
+ }catch(error){
+  console.error("Admin login error:",error);
+  msg.classList.remove("hidden","text-green-400");msg.classList.add("text-red-400");
+  msg.innerText=error.message&&!error.code?error.message:friendlyAuthError(error);
+  showToast("লগইন ব্যর্থ: "+msg.innerText,"error");
+ }finally{
+  btn.disabled=false;
+  if(!isRecoveryMode)btn.textContent="লগইন করুন";
+  else btn.textContent=originalText;
  }
- const {data,error}=await db.auth.signInWithPassword({email,password});
- if(error){document.getElementById("authErrorMsg").classList.remove("hidden");document.getElementById("authErrorMsg").innerText="লগইন ব্যর্থ: ইমেইল/পাসওয়ার্ড যাচাই করুন";return;}
- const {data:role,error:roleErr}=await db.from("admin_users").select("user_id").eq("user_id",data.user.id).maybeSingle();
- if(roleErr||!role){await db.auth.signOut();document.getElementById("authErrorMsg").classList.remove("hidden");document.getElementById("authErrorMsg").innerText="এই অ্যাকাউন্টে Admin অনুমতি নেই";return;}
- closeAdminAuthModal();document.getElementById("adminDashboardModal").classList.remove("hidden");showToast("এডমিন প্যানেলে স্বাগতম");
 }
-async function closeAdminDashboard(){document.getElementById("adminDashboardModal").classList.add("hidden");resetFormState();await db.auth.signOut();}
-async function handleChangePassword(e){e.preventDefault();const p=document.getElementById("newAdminPass").value;if(p.length<8){showToast("কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন");return;}const {error}=await db.auth.updateUser({password:p});if(error)showToast(error.message);else{document.getElementById("newAdminPass").value="";showToast("পাসওয়ার্ড পরিবর্তন হয়েছে");}}
+async function closeAdminDashboard(){document.getElementById("adminDashboardModal").classList.add("hidden");resetFormState();await firebaseAuth.signOut();}
+async function handleChangePassword(e){e.preventDefault();const p=document.getElementById("newAdminPass").value;if(p.length<8){showToast("কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন","error");return;}try{const user=firebaseAuth.currentUser;if(!user)throw new Error("আগে Admin লগইন করুন");await user.updatePassword(p);document.getElementById("newAdminPass").value="";showToast("পাসওয়ার্ড পরিবর্তন হয়েছে");}catch(error){showToast(friendlyAuthError(error),"error");}}
 async function handleSaveSocials(e){e.preventDefault();const next={youtube:document.getElementById("inputYoutube").value,telegram:document.getElementById("inputTelegram").value,tiktok:document.getElementById("inputTiktok").value,facebook:document.getElementById("inputFacebook").value||"#"};const {error}=await db.from("store_settings").upsert({key:"socials",value:next,updated_at:new Date().toISOString()});if(error){showToast("সেভ হয়নি: Admin অনুমতি যাচাই করুন");return;}socialLinks=next;renderSocialLinks();showToast("সোশ্যাল লিঙ্ক আপডেট হয়েছে");}
 function startEditingItem(id){editingItem=storeItems.find(x=>x.id===id);if(!editingItem)return;document.getElementById("editingItemId").value=id;document.getElementById("uploadType").value=editingItem.type;document.getElementById("uploadTitle").value=editingItem.title;document.getElementById("uploadIconUrl").value=editingItem.icon_url||"";document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-pen-to-square"></i> এডিট করছেন: '+escapeHtml(editingItem.title);document.getElementById("cancelEditBtn").classList.remove("hidden");document.getElementById("uploadSubmitBtn").innerHTML="পরিবর্তন সেভ করুন";document.getElementById("formPanelTitle").scrollIntoView({behavior:"smooth"});}
 function resetFormState(){editingItem=null;document.getElementById("editingItemId").value="";document.getElementById("uploadType").value="apk";document.getElementById("uploadTitle").value="";document.getElementById("uploadIconUrl").value="";document.getElementById("uploadIconFile").value="";document.getElementById("uploadFileAttachment").value="";document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-cloud-arrow-up"></i> নতুন ফাইল আপলোড করুন';document.getElementById("cancelEditBtn").classList.add("hidden");document.getElementById("uploadSubmitBtn").innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';document.getElementById("fileAttachLabel").innerText="ফাইল যুক্ত করুন (APK, ZIP, HTML, ভিডিও)";}
@@ -113,5 +168,14 @@ async function handleItemUploadOrUpdate(e){
  }catch(err){console.error(err);showToast("ব্যর্থ: "+(err.message||"ফাইল আপলোড হয়নি"));}finally{btn.disabled=false;if(editingItem)btn.innerHTML="পরিবর্তন সেভ করুন";else btn.innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';}
 }
 async function deleteItem(id){if(!confirm("আপনি কি এই ফাইলটি মুছে ফেলতে চান?"))return;const item=storeItems.find(x=>x.id===id);if(!item)return;const {error}=await db.from("store_items").delete().eq("id",id);if(error){showToast("মুছতে ব্যর্থ — Admin অনুমতি যাচাই করুন");return;}await db.storage.from("store-files").remove([item.file_path]);await loadItems();showToast("ফাইল মুছে ফেলা হয়েছে");}
-function showToast(msg){const t=document.getElementById("toast");document.getElementById("toastMsg").innerText=msg;t.classList.remove("translate-y-20","opacity-0");setTimeout(()=>t.classList.add("translate-y-20","opacity-0"),3500);}
+let toastTimer;
+function showToast(msg,type="success"){
+ const t=document.getElementById("toast"),icon=t.querySelector("i");
+ document.getElementById("toastMsg").innerText=msg;
+ t.classList.remove("bg-brand-500","bg-red-600","border-white/20","translate-y-20","opacity-0");
+ t.classList.add(type==="error"?"bg-red-600":"bg-brand-500","border-white/20");
+ icon.className=type==="error"?"fa-solid fa-circle-exclamation text-lg":"fa-solid fa-circle-check text-lg";
+ t.classList.remove("translate-y-20","opacity-0");
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.add("translate-y-20","opacity-0"),4000);
+}
 function initCanvasBackground(){const canvas=document.getElementById("bg-canvas");if(!canvas)return;const ctx=canvas.getContext("2d");function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}resize();addEventListener("resize",resize);const ps=Array.from({length:40},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*2+.5,vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,a:Math.random()*.5+.2}));function frame(){ctx.clearRect(0,0,canvas.width,canvas.height);for(const p of ps){p.x=(p.x+p.vx+canvas.width)%canvas.width;p.y=(p.y+p.vy+canvas.height)%canvas.height;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle="rgba(52,211,153,"+p.a+")";ctx.fill();}requestAnimationFrame(frame);}frame();}
