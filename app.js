@@ -77,11 +77,25 @@ async function downloadFile(id){
  try{
   const {data}=db.storage.from("store-files").getPublicUrl(item.file_path);
   if(!data?.publicUrl)throw new Error("ডাউনলোড URL পাওয়া যায়নি");
-  const a=document.createElement("a");a.href=data.publicUrl;a.download=item.file_name||item.title;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
-  const result=await db.from("store_items").update({downloads:(item.downloads||0)+1}).eq("id",id);
-  if(!result.error){item.downloads=(item.downloads||0)+1;renderStoreItems(document.getElementById("searchInput").value);}
-  showToast("ডাউনলোড লিংক খোলা হয়েছে");
- }catch(error){console.error("Public download failed:",error);showToast("ডাউনলোড ব্যর্থ: "+(error.message||"আবার চেষ্টা করুন"),"error");}
+  // Fetch into a Blob so HTML/source files download instead of opening as a browser page.
+  const response=await fetch(data.publicUrl,{cache:"no-store"});
+  if(!response.ok)throw new Error("ফাইল সার্ভার থেকে পাওয়া যায়নি (HTTP "+response.status+")");
+  const blob=await response.blob();
+  if(!blob.size)throw new Error("ফাইলটি খালি");
+  const objectUrl=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=objectUrl;a.download=item.file_name||item.title||"download";a.style.display="none";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+  // Persist count atomically in Postgres; never fake the displayed count locally.
+  const {data:count,error}=await db.rpc("increment_store_item_download",{p_item_id:id});
+  if(error)throw error;
+  item.downloads=Number(count);
+  renderStoreItems(document.getElementById("searchInput")?.value||"");
+  showToast("ডাউনলোড শুরু হয়েছে");
+ }catch(error){
+  console.error("Public download failed:",error);
+  showToast("ডাউনলোড ব্যর্থ: "+(error.message||"আবার চেষ্টা করুন"),"error");
+ }
 }
 function switchTab(tab){const a=document.getElementById("appsSection"),c=document.getElementById("codesSection");a.classList.toggle("hidden",tab!=="apps");c.classList.toggle("hidden",tab!=="codes");document.getElementById("tabBtnApps").classList.toggle("tab-btn-active",tab==="apps");document.getElementById("tabBtnCodes").classList.toggle("tab-btn-active",tab==="codes");}
 function toggleSidebar(){document.getElementById("sidebar").classList.toggle("-translate-x-full");document.getElementById("sidebarOverlay").classList.toggle("hidden");}
@@ -99,7 +113,10 @@ async function handleForgotPassword(){
   msg.classList.remove("text-red-400");msg.classList.add("text-green-400");
   msg.innerText="পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে। Inbox/Spam দেখুন।";
   showToast("রিসেট ইমেইল পাঠানো হয়েছে");
- }catch(error){msg.innerText="রিসেট ইমেইল পাঠানো যায়নি: "+friendlyAuthError(error);}
+ }catch(error){
+  console.error("Firebase password reset error:",error);
+  msg.innerText="রিসেট ইমেইল পাঠানো যায়নি: "+friendlyAuthError(error);
+ }
 }
 function friendlyAuthError(error){
  const code=error?.code||"";
@@ -113,9 +130,15 @@ function friendlyAuthError(error){
   "auth/invalid-email":"সঠিক ইমেইল লিখুন।",
   "auth/weak-password":"পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের দিন।",
   "auth/expired-action-code":"রিসেট লিংকের মেয়াদ শেষ। নতুন লিংক নিন।",
-  "auth/invalid-action-code":"রিসেট লিংকটি সঠিক নয় বা মেয়াদ শেষ।"
+  "auth/invalid-action-code":"রিসেট লিংকটি সঠিক নয় বা মেয়াদ শেষ।",
+  "auth/unauthorized-continue-uri":"Firebase Console → Authentication → Settings → Authorized domains-এ ওয়েবসাইটের ডোমেইন যোগ করুন।",
+  "auth/invalid-continue-uri":"Password reset continue URL Firebase-এ অনুমোদিত নয়। Authorized domains যাচাই করুন।",
+  "auth/operation-not-allowed":"Firebase Console → Authentication → Sign-in method-এ Email/Password চালু করুন।",
+  "auth/missing-continue-uri":"Firebase Password Reset-এর continue URL সেটিংস নেই।",
+  "auth/too-many-requests":"অনেকবার রিসেট চাওয়া হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।",
+  "auth/internal-error":"Firebase-এর সার্ভার ত্রুটি। কিছুক্ষণ পরে আবার চেষ্টা করুন।"
  };
- return messages[code]||"সমস্যা হয়েছে। ইন্টারনেট ও Firebase Authentication সেটিংস যাচাই করুন।";
+ return messages[code]||(code?("Firebase error ("+code+"): "+(error?.message||"অনির্দিষ্ট সমস্যা")):"সমস্যা হয়েছে। Firebase Authentication সেটিংস যাচাই করুন।");
 }
 async function handleAdminLogin(e){
  e.preventDefault();
