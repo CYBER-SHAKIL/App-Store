@@ -1,7 +1,21 @@
 /* Shakil Store — Supabase-backed public catalog */
 const SUPABASE_URL = "https://xqdzavnoyfuglquhjuqg.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_IaTsiI3f_IyQqaBBCbd_tA_pKqX4feb";
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const ADMIN_EMAIL = "mdshakil162025@gmail.com";
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB3nsJhE6zdnYY8e9I5ZA1knkcCkZcF9UU",
+  authDomain: "shakil-dev-pro.firebaseapp.com",
+  projectId: "shakil-dev-pro",
+  appId: "1:772040366682:web:d5d1e1335be6a6da59d663"
+};
+if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+const firebaseAuth = firebase.auth();
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  accessToken: async () => {
+    const user = firebaseAuth.currentUser;
+    return user ? await user.getIdToken() : null;
+  }
+});
 let storeItems = [], socialLinks = {youtube:"https://www.youtube.com/@ShakilX9X",telegram:"https://t.me/Shakil_X9X",tiktok:"https://tiktok.com/@shakil.5090",facebook:"#"};
 let editingItem = null;
 let isRecoveryMode = false;
