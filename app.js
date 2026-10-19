@@ -192,22 +192,106 @@ async function handleAdminLogin(e){
 async function closeAdminDashboard(){document.getElementById("adminDashboardModal").classList.add("hidden");resetFormState();await firebaseAuth.signOut();}
 async function handleChangePassword(e){e.preventDefault();const p=document.getElementById("newAdminPass").value;if(p.length<8){showToast("কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন","error");return;}try{const user=firebaseAuth.currentUser;if(!user)throw new Error("আগে Admin লগইন করুন");await user.updatePassword(p);document.getElementById("newAdminPass").value="";showToast("পাসওয়ার্ড পরিবর্তন হয়েছে");}catch(error){showToast(friendlyAuthError(error),"error");}}
 async function handleSaveSocials(e){e.preventDefault();const next={youtube:document.getElementById("inputYoutube").value,telegram:document.getElementById("inputTelegram").value,tiktok:document.getElementById("inputTiktok").value,facebook:document.getElementById("inputFacebook").value||"#"};const {error}=await db.from("store_settings").upsert({key:"socials",value:next,updated_at:new Date().toISOString()});if(error){showToast("সেভ হয়নি: Admin অনুমতি যাচাই করুন");return;}socialLinks=next;renderSocialLinks();showToast("সোশ্যাল লিঙ্ক আপডেট হয়েছে");}
-function startEditingItem(id){editingItem=storeItems.find(x=>x.id===id);if(!editingItem)return;document.getElementById("editingItemId").value=id;document.getElementById("uploadType").value=editingItem.type;document.getElementById("uploadTitle").value=editingItem.title;document.getElementById("uploadIconUrl").value=editingItem.icon_url||"";document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-pen-to-square"></i> এডিট করছেন: '+escapeHtml(editingItem.title);document.getElementById("cancelEditBtn").classList.remove("hidden");document.getElementById("uploadSubmitBtn").innerHTML="পরিবর্তন সেভ করুন";document.getElementById("formPanelTitle").scrollIntoView({behavior:"smooth"});}
-function resetFormState(){editingItem=null;document.getElementById("editingItemId").value="";document.getElementById("uploadType").value="apk";document.getElementById("uploadTitle").value="";document.getElementById("uploadIconUrl").value="";document.getElementById("uploadIconFile").value="";document.getElementById("uploadFileAttachment").value="";document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-cloud-arrow-up"></i> নতুন ফাইল আপলোড করুন';document.getElementById("cancelEditBtn").classList.add("hidden");document.getElementById("uploadSubmitBtn").innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';document.getElementById("fileAttachLabel").innerText="ফাইল যুক্ত করুন (APK, ZIP, HTML, ভিডিও)";}
+function startEditingItem(id){
+ editingItem=storeItems.find(x=>x.id===id);if(!editingItem)return;
+ document.getElementById("editingItemId").value=id;
+ document.getElementById("uploadType").value=editingItem.type;
+ document.getElementById("uploadTitle").value=editingItem.title;
+ document.getElementById("uploadIconUrl").value=editingItem.icon_url||"";
+ document.getElementById("removeIconCheckbox").checked=false;
+ document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-pen-to-square"></i> এডিট করছেন: '+escapeHtml(editingItem.title);
+ document.getElementById("cancelEditBtn").classList.remove("hidden");
+ document.getElementById("uploadSubmitBtn").innerHTML="পরিবর্তন সেভ করুন";
+ document.getElementById("fileEditNote").innerText="* নতুন ফাইল না বাছলে আগের ফাইল থাকবে; নতুন ফাইল বাছলে সেটি দিয়ে Replace হবে।";
+ document.getElementById("formPanelTitle").scrollIntoView({behavior:"smooth"});
+}
+function resetFormState(){
+ editingItem=null;
+ document.getElementById("editingItemId").value="";
+ document.getElementById("uploadType").value="apk";
+ document.getElementById("uploadTitle").value="";
+ document.getElementById("uploadIconUrl").value="";
+ document.getElementById("uploadIconFile").value="";
+ document.getElementById("uploadFileAttachment").value="";
+ document.getElementById("removeIconCheckbox").checked=false;
+ document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-cloud-arrow-up"></i> নতুন ফাইল আপলোড করুন';
+ document.getElementById("cancelEditBtn").classList.add("hidden");
+ document.getElementById("uploadSubmitBtn").innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';
+ document.getElementById("fileAttachLabel").innerText="ফাইল যুক্ত করুন (APK, ZIP, HTML, ভিডিও)";
+ document.getElementById("fileEditNote").innerText="* আসল ফাইল Storage-এ সেভ থাকবে।";
+}
+function storagePathFromPublicUrl(url){
+ if(!url)return null;
+ const marker="/storage/v1/object/public/store-files/";
+ const index=url.indexOf(marker);
+ return index<0?null:decodeURIComponent(url.slice(index+marker.length).split("?")[0]);
+}
+async function removeStoredObject(path){
+ if(!path)return;
+ const {error}=await db.storage.from("store-files").remove([path]);
+ if(error)console.warn("Old storage file cleanup failed:",path,error.message);
+}
 async function handleItemUploadOrUpdate(e){
- e.preventDefault();const btn=document.getElementById("uploadSubmitBtn"),id=document.getElementById("editingItemId").value,type=document.getElementById("uploadType").value,title=document.getElementById("uploadTitle").value.trim(),file=document.getElementById("uploadFileAttachment").files[0],iconFile=document.getElementById("uploadIconFile").files[0],iconUrl=document.getElementById("uploadIconUrl").value.trim();
+ e.preventDefault();
+ const btn=document.getElementById("uploadSubmitBtn"),id=document.getElementById("editingItemId").value,
+ type=document.getElementById("uploadType").value,title=document.getElementById("uploadTitle").value.trim(),
+ file=document.getElementById("uploadFileAttachment").files[0],iconFile=document.getElementById("uploadIconFile").files[0],
+ iconUrl=document.getElementById("uploadIconUrl").value.trim(),removeIcon=document.getElementById("removeIconCheckbox").checked;
  btn.disabled=true;btn.innerHTML="আপলোড হচ্ছে…";
+ const newlyUploaded=[];
  try{
-  const adminUser=firebaseAuth.currentUser;if(!adminUser)throw new Error("আগে Admin লগইন করুন");if((adminUser.email||"").toLowerCase()!==ADMIN_EMAIL)throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
-  let old=id?storeItems.find(x=>x.id===id):null;if(!title)throw new Error("অ্যাপ বা ফাইলের নাম লিখুন");if(!old&&!file)throw new Error("নতুন ফাইল নির্বাচন করুন");
-  let file_path=old?.file_path,file_name=old?.file_name,size_bytes=old?.size_bytes||0;
-  if(file){const safeName=file.name.replace(/[^\w.\-]+/g,"_"),path=crypto.randomUUID()+"-"+safeName;const {error}=await db.storage.from("store-files").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});if(error)throw error;file_path=path;file_name=file.name;size_bytes=file.size;}
-  let icon_url=old?.icon_url||"https://cdn-icons-png.flaticon.com/512/1157/1157109.png";
-  if(iconFile){const path="icons/"+crypto.randomUUID()+"-"+iconFile.name.replace(/[^\w.\-]+/g,"_");const {error}=await db.storage.from("store-files").upload(path,iconFile,{upsert:false,contentType:iconFile.type||"image/png"});if(error)throw error;icon_url=db.storage.from("store-files").getPublicUrl(path).data.publicUrl;}else if(iconUrl)icon_url=iconUrl;
+  const adminUser=firebaseAuth.currentUser;
+  if(!adminUser)throw new Error("আগে Admin লগইন করুন");
+  if((adminUser.email||"").toLowerCase()!==ADMIN_EMAIL)throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
+  const old=id?storeItems.find(x=>x.id===id):null;
+  if(id&&!old)throw new Error("এডিট করার ফাইলটি তালিকায় পাওয়া যায়নি। পেজ Refresh করে আবার চেষ্টা করুন।");
+  if(!title)throw new Error("অ্যাপ বা ফাইলের নাম লিখুন");
+  if(!old&&!file)throw new Error("নতুন ফাইল নির্বাচন করুন");
+
+  let file_path=old?.file_path||null,file_name=old?.file_name||null,size_bytes=old?.size_bytes||0;
+  if(file){
+   const safeName=file.name.replace(/[^\w.\-]+/g,"_"),path=crypto.randomUUID()+"-"+safeName;
+   const {error}=await db.storage.from("store-files").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});
+   if(error)throw new Error("নতুন ফাইল আপলোড হয়নি: "+error.message);
+   newlyUploaded.push(path);file_path=path;file_name=file.name;size_bytes=file.size;
+  }
+
+  let icon_url=old?.icon_url||null;
+  if(removeIcon)icon_url=null;
+  if(iconFile){
+   const path="icons/"+crypto.randomUUID()+"-"+iconFile.name.replace(/[^\w.\-]+/g,"_");
+   const {error}=await db.storage.from("store-files").upload(path,iconFile,{upsert:false,contentType:iconFile.type||"image/png"});
+   if(error)throw new Error("আইকন আপলোড হয়নি: "+error.message);
+   newlyUploaded.push(path);icon_url=db.storage.from("store-files").getPublicUrl(path).data.publicUrl;
+  }else if(iconUrl)icon_url=iconUrl;
+
   const payload={type,title,file_name,file_path,size_bytes,icon_url,updated_at:new Date().toISOString()};
-  const result=old?await db.from("store_items").update(payload).eq("id",id):await db.from("store_items").insert(payload);
-  if(result.error)throw result.error;showToast(old?"ফাইল আপডেট হয়েছে":"ফাইল আপলোড ও প্রকাশ হয়েছে");resetFormState();await loadItems();
- }catch(err){console.error("Upload failed:",err);showToast("আপলোড ব্যর্থ: "+(err.message||"ফাইল আপলোড হয়নি"),"error");}finally{btn.disabled=false;if(editingItem)btn.innerHTML="পরিবর্তন সেভ করুন";else btn.innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';}
+  let result;
+  if(old){
+   result=await db.from("store_items").update(payload).eq("id",id).select("id").maybeSingle();
+   if(result.error)throw new Error("ডেটাবেজে পরিবর্তন সেভ হয়নি: "+result.error.message);
+   if(!result.data)throw new Error("ডেটাবেজে পরিবর্তন সেভ হয়নি: Admin permission/RLS যাচাই করুন।");
+  }else{
+   result=await db.from("store_items").insert(payload).select("id").single();
+   if(result.error)throw new Error("ফাইল প্রকাশ হয়নি: "+result.error.message);
+  }
+
+  // Only remove old storage objects after the database successfully points to the replacement.
+  if(old&&file&&old.file_path&&old.file_path!==file_path)await removeStoredObject(old.file_path);
+  if(old&&(removeIcon||iconFile||iconUrl)&&old.icon_url){
+   const oldIconPath=storagePathFromPublicUrl(old.icon_url);
+   if(oldIconPath&&oldIconPath!==storagePathFromPublicUrl(icon_url))await removeStoredObject(oldIconPath);
+  }
+  showToast(old?"পরিবর্তন সেভ হয়েছে":"ফাইল আপলোড ও প্রকাশ হয়েছে");
+  resetFormState();await loadItems();
+ }catch(err){
+  console.error("Upload/edit failed:",err);
+  for(const path of newlyUploaded)await removeStoredObject(path);
+  showToast("আপডেট ব্যর্থ: "+(err.message||"ফাইল সেভ হয়নি"),"error");
+ }finally{
+  btn.disabled=false;
+  btn.innerHTML=editingItem?"পরিবর্তন সেভ করুন":'<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';
+ }
 }
 async function deleteItem(id){if(!confirm("আপনি কি এই ফাইলটি মুছে ফেলতে চান?"))return;const item=storeItems.find(x=>x.id===id);if(!item)return;const {error}=await db.from("store_items").delete().eq("id",id);if(error){showToast("মুছতে ব্যর্থ — Admin অনুমতি যাচাই করুন");return;}await db.storage.from("store-files").remove([item.file_path]);await loadItems();showToast("ফাইল মুছে ফেলা হয়েছে");}
 let toastTimer;
