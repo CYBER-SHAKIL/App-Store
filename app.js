@@ -109,7 +109,8 @@ async function handleForgotPassword(){
  if(!email){msg.innerText="আগে আপনার ইমেইল লিখুন, তারপর Forgot Password চাপুন।";return;}
  if(email.toLowerCase()!==ADMIN_EMAIL){msg.innerText="এই ইমেইলের জন্য পাসওয়ার্ড রিসেট অনুমোদিত নয়।";return;}
  try{
-  await firebaseAuth.sendPasswordResetEmail(email,{url:window.location.origin+window.location.pathname,handleCodeInApp:false});
+  // Use Firebase's hosted password-reset handler; this avoids requiring every Vercel deployment hostname as a continue URL.
+  await firebaseAuth.sendPasswordResetEmail(email);
   msg.classList.remove("text-red-400");msg.classList.add("text-green-400");
   msg.innerText="পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে। Inbox/Spam দেখুন।";
   showToast("রিসেট ইমেইল পাঠানো হয়েছে");
