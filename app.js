@@ -257,13 +257,13 @@ async function handleItemUploadOrUpdate(e){
   }
 
   let icon_url=old?.icon_url||null;
-  if(removeIcon)icon_url=null;
   if(iconFile){
    const path="icons/"+crypto.randomUUID()+"-"+iconFile.name.replace(/[^\w.\-]+/g,"_");
    const {error}=await db.storage.from("store-files").upload(path,iconFile,{upsert:false,contentType:iconFile.type||"image/png"});
    if(error)throw new Error("আইকন আপলোড হয়নি: "+error.message);
    newlyUploaded.push(path);icon_url=db.storage.from("store-files").getPublicUrl(path).data.publicUrl;
-  }else if(iconUrl)icon_url=iconUrl;
+  }else if(removeIcon)icon_url=null;
+  else if(iconUrl)icon_url=iconUrl;
 
   const payload={type,title,file_name,file_path,size_bytes,icon_url,updated_at:new Date().toISOString()};
   let result;
