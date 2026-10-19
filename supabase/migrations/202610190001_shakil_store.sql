@@ -1,0 +1,16 @@
+-- Shakil Store database and storage setup
+create table if not exists public.admin_users (user_id uuid primary key references auth.users(id) on delete cascade, created_at timestamptz not null default now());
+create table if not exists public.store_items (id uuid primary key default gen_random_uuid(), type text not null check(type in ('apk','code')), title text not null, size_bytes bigint not null default 0, file_name text not null, file_path text not null, icon_url text, downloads bigint not null default 0, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists public.store_settings (key text primary key, value jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+alter table public.admin_users enable row level security; alter table public.store_items enable row level security; alter table public.store_settings enable row level security;
+create policy "users can read own admin row" on public.admin_users for select to authenticated using (user_id=auth.uid());
+create policy "public can read store items" on public.store_items for select to anon, authenticated using (true);
+create policy "admins manage store items" on public.store_items for all to authenticated using (exists(select 1 from public.admin_users a where a.user_id=auth.uid())) with check (exists(select 1 from public.admin_users a where a.user_id=auth.uid()));
+create policy "public can read settings" on public.store_settings for select to anon, authenticated using (true);
+create policy "admins manage settings" on public.store_settings for all to authenticated using (exists(select 1 from public.admin_users a where a.user_id=auth.uid())) with check (exists(select 1 from public.admin_users a where a.user_id=auth.uid()));
+grant select on public.store_items,public.store_settings to anon,authenticated; grant insert,update,delete on public.store_items,public.store_settings to authenticated;
+insert into storage.buckets(id,name,public,file_size_limit) values('store-files','store-files',true,52428800) on conflict(id) do update set public=true,file_size_limit=52428800;
+create policy "public download store files" on storage.objects for select to anon,authenticated using(bucket_id='store-files');
+create policy "admins upload store files" on storage.objects for insert to authenticated with check(bucket_id='store-files' and exists(select 1 from public.admin_users a where a.user_id=auth.uid()));
+create policy "admins update store files" on storage.objects for update to authenticated using(bucket_id='store-files' and exists(select 1 from public.admin_users a where a.user_id=auth.uid())) with check(bucket_id='store-files' and exists(select 1 from public.admin_users a where a.user_id=auth.uid()));
+create policy "admins delete store files" on storage.objects for delete to authenticated using(bucket_id='store-files' and exists(select 1 from public.admin_users a where a.user_id=auth.uid()));
