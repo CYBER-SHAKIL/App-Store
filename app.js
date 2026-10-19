@@ -246,6 +246,8 @@ async function handleItemUploadOrUpdate(e){
   const adminUser=firebaseAuth.currentUser;
   if(!adminUser)throw new Error("আগে Admin লগইন করুন");
   if((adminUser.email||"").toLowerCase()!==ADMIN_EMAIL)throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
+  // Refresh Firebase ID token before a database write so the email claim used by the RLS policy is current.
+  await adminUser.getIdToken(true);
   const old=id?storeItems.find(x=>x.id===id):null;
   if(id&&!old)throw new Error("এডিট করার ফাইলটি তালিকায় পাওয়া যায়নি। পেজ Refresh করে আবার চেষ্টা করুন।");
   if(!title)throw new Error("অ্যাপ বা ফাইলের নাম লিখুন");
@@ -272,8 +274,8 @@ async function handleItemUploadOrUpdate(e){
   let result;
   if(old){
    result=await db.from("store_items").update(payload).eq("id",id).select("id").maybeSingle();
-   if(result.error)throw new Error("ডেটাবেজে পরিবর্তন সেভ হয়নি: "+result.error.message);
-   if(!result.data)throw new Error("ডেটাবেজে পরিবর্তন সেভ হয়নি: Admin permission/RLS যাচাই করুন।");
+   if(result.error)throw new Error("ডেটাবেজে পরিবর্তন সেভ হয়নি ("+(result.error.code||"DB")+"): "+result.error.message);
+   if(!result.data)throw new Error("ডেটাবেজে কোনো row update হয়নি। Supabase RLS policy-তে Admin email claim মেলেনি; লগআউট করে আবার Admin login করুন।");
   }else{
    result=await db.from("store_items").insert(payload).select("id").single();
    if(result.error)throw new Error("ফাইল প্রকাশ হয়নি: "+result.error.message);
