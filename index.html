@@ -397,12 +397,16 @@
                                     <input type="url" id="uploadIconUrl" placeholder="https://example.com/icon.png" class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-2 text-xs text-white">
                                 </div>
                             </div>
+                            <label class="flex items-center gap-2 text-[11px] text-gray-300 bg-red-950/30 border border-red-500/30 rounded-lg px-3 py-2">
+                                <input type="checkbox" id="removeIconCheckbox" class="accent-red-500">
+                                <span><i class="fa-regular fa-trash-can text-red-400 mr-1"></i> অ্যাপ আইকনের ছবি সরিয়ে দিন</span>
+                            </label>
 
                             <!-- File Attachment Option -->
                             <div class="p-3 bg-brand-900/40 rounded-xl border border-dashed border-brand-500/40">
                                 <label class="block text-xs text-brand-400 font-bold mb-1" id="fileAttachLabel">ফাইল যুক্ত করুন (APK, ZIP, HTML)</label>
                                 <input type="file" id="uploadFileAttachment" class="w-full text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-brand-500 file:text-white hover:file:bg-brand-600 transition">
-                                <p class="text-[10px] text-gray-400 mt-1" id="fileEditNote">* আসল ফাইল ব্রাউজার ডাটায় সেভ থাকবে।</p>
+                                <p class="text-[10px] text-gray-400 mt-1" id="fileEditNote">* আসল ফাইল নিরাপদ Storage-এ সেভ থাকবে।</p>
                             </div>
 
                             <button type="submit" id="uploadSubmitBtn" class="w-full bg-brand-500 hover:bg-brand-400 text-white font-bold py-2 rounded-xl transition glow-box flex items-center justify-center gap-2 text-xs">
