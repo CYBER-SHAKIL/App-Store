@@ -4,9 +4,18 @@ const SUPABASE_ANON_KEY = "sb_publishable_IaTsiI3f_IyQqaBBCbd_tA_pKqX4feb";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let storeItems = [], socialLinks = {youtube:"https://www.youtube.com/@ShakilX9X",telegram:"https://t.me/Shakil_X9X",tiktok:"https://tiktok.com/@shakil.5090",facebook:"#"};
 let editingItem = null;
+let isRecoveryMode = false;
 document.addEventListener("DOMContentLoaded", async () => {
   renderSocialLinks(); initCanvasBackground();
   await loadSettings(); await loadItems();
+  if (window.location.hash.includes("type=recovery")) {
+    isRecoveryMode = true;
+    document.getElementById("adminAuthModal").classList.remove("hidden");
+    document.getElementById("adminAuthEmail").closest("div").classList.add("hidden");
+    document.getElementById("adminAuthPass").placeholder = "নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)";
+    document.querySelector("#adminAuthModal h3").textContent = "নতুন পাসওয়ার্ড সেট করুন";
+    document.querySelector("#adminAuthModal form button[type=submit]").textContent = "পাসওয়ার্ড সেভ করুন";
+  }
 });
 function escapeHtml(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function formatFileSize(n){if(!n)return "0 Bytes";const u=["Bytes","KB","MB","GB","TB"],i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),u.length-1);return (n/Math.pow(1024,i)).toFixed(1)+" "+u[i];}
@@ -60,8 +69,23 @@ function toggleSidebar(){document.getElementById("sidebar").classList.toggle("-t
 function filterItems(){renderStoreItems(document.getElementById("searchInput").value);}
 function openAdminAuthModal(){if(!document.getElementById("sidebar").classList.contains("-translate-x-full"))toggleSidebar();document.getElementById("adminAuthModal").classList.remove("hidden");}
 function closeAdminAuthModal(){document.getElementById("adminAuthModal").classList.add("hidden");document.getElementById("authErrorMsg").classList.add("hidden");}
+async function handleForgotPassword(){
+ const email=document.getElementById("adminAuthEmail").value.trim();
+ if(!email){const msg=document.getElementById("authErrorMsg");msg.classList.remove("hidden");msg.innerText="আগে আপনার ইমেইল লিখুন, তারপর Forgot Password চাপুন।";return;}
+ const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname});
+ const msg=document.getElementById("authErrorMsg");msg.classList.remove("hidden");
+ msg.innerText=error?"রিকভারি ইমেইল পাঠানো যায়নি। Supabase Email সেটিংস যাচাই করুন।":"ইমেইলটি Supabase-এ থাকলে পাসওয়ার্ড রিসেটের লিংক পাঠানো হয়েছে। Inbox/Spam দেখুন।";
+}
 async function handleAdminLogin(e){
  e.preventDefault();const email=document.getElementById("adminAuthEmail").value.trim(),password=document.getElementById("adminAuthPass").value;
+ if(isRecoveryMode){
+  const msg=document.getElementById("authErrorMsg");
+  if(password.length<8){msg.classList.remove("hidden");msg.innerText="নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।";return;}
+  const {error}=await db.auth.updateUser({password});msg.classList.remove("hidden");
+  if(error){msg.innerText="পাসওয়ার্ড পরিবর্তন হয়নি: রিসেট লিংকটি আবার ব্যবহার করুন।";return;}
+  isRecoveryMode=false;msg.classList.remove("text-red-400");msg.classList.add("text-green-400");msg.innerText="পাসওয়ার্ড পরিবর্তন হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।";
+  document.getElementById("adminAuthEmail").closest("div").classList.remove("hidden");document.getElementById("adminAuthPass").value="";document.getElementById("adminAuthPass").placeholder="পাসওয়ার্ড লিখুন...";document.querySelector("#adminAuthModal h3").textContent="এডমিন প্রবেশের অনুমতি";document.querySelector("#adminAuthModal form button[type=submit]").textContent="লগইন করুন";history.replaceState(null,"",window.location.pathname);return;
+ }
  const {data,error}=await db.auth.signInWithPassword({email,password});
  if(error){document.getElementById("authErrorMsg").classList.remove("hidden");document.getElementById("authErrorMsg").innerText="লগইন ব্যর্থ: ইমেইল/পাসওয়ার্ড যাচাই করুন";return;}
  const {data:role,error:roleErr}=await db.from("admin_users").select("user_id").eq("user_id",data.user.id).maybeSingle();
