@@ -170,8 +170,8 @@ async function handleItemUploadOrUpdate(e){
  e.preventDefault();const btn=document.getElementById("uploadSubmitBtn"),id=document.getElementById("editingItemId").value,type=document.getElementById("uploadType").value,title=document.getElementById("uploadTitle").value.trim(),file=document.getElementById("uploadFileAttachment").files[0],iconFile=document.getElementById("uploadIconFile").files[0],iconUrl=document.getElementById("uploadIconUrl").value.trim();
  btn.disabled=true;btn.innerHTML="আপলোড হচ্ছে…";
  try{
-  const {data:sessionData}=await db.auth.getSession();if(!sessionData.session)throw new Error("আগে Admin লগইন করুন");
-  let old=id?storeItems.find(x=>x.id===id):null;if(!old&&!file)throw new Error("নতুন ফাইল নির্বাচন করুন");
+  const adminUser=firebaseAuth.currentUser;if(!adminUser)throw new Error("আগে Admin লগইন করুন");if((adminUser.email||"").toLowerCase()!==ADMIN_EMAIL)throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
+  let old=id?storeItems.find(x=>x.id===id):null;if(!title)throw new Error("অ্যাপ বা ফাইলের নাম লিখুন");if(!old&&!file)throw new Error("নতুন ফাইল নির্বাচন করুন");
   let file_path=old?.file_path,file_name=old?.file_name,size_bytes=old?.size_bytes||0;
   if(file){const safeName=file.name.replace(/[^\w.\-]+/g,"_"),path=crypto.randomUUID()+"-"+safeName;const {error}=await db.storage.from("store-files").upload(path,file,{upsert:false,contentType:file.type||"application/octet-stream"});if(error)throw error;file_path=path;file_name=file.name;size_bytes=file.size;}
   let icon_url=old?.icon_url||"https://cdn-icons-png.flaticon.com/512/1157/1157109.png";
@@ -179,7 +179,7 @@ async function handleItemUploadOrUpdate(e){
   const payload={type,title,file_name,file_path,size_bytes,icon_url,updated_at:new Date().toISOString()};
   const result=old?await db.from("store_items").update(payload).eq("id",id):await db.from("store_items").insert(payload);
   if(result.error)throw result.error;showToast(old?"ফাইল আপডেট হয়েছে":"ফাইল আপলোড ও প্রকাশ হয়েছে");resetFormState();await loadItems();
- }catch(err){console.error(err);showToast("ব্যর্থ: "+(err.message||"ফাইল আপলোড হয়নি"));}finally{btn.disabled=false;if(editingItem)btn.innerHTML="পরিবর্তন সেভ করুন";else btn.innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';}
+ }catch(err){console.error("Upload failed:",err);showToast("আপলোড ব্যর্থ: "+(err.message||"ফাইল আপলোড হয়নি"),"error");}finally{btn.disabled=false;if(editingItem)btn.innerHTML="পরিবর্তন সেভ করুন";else btn.innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';}
 }
 async function deleteItem(id){if(!confirm("আপনি কি এই ফাইলটি মুছে ফেলতে চান?"))return;const item=storeItems.find(x=>x.id===id);if(!item)return;const {error}=await db.from("store_items").delete().eq("id",id);if(error){showToast("মুছতে ব্যর্থ — Admin অনুমতি যাচাই করুন");return;}await db.storage.from("store-files").remove([item.file_path]);await loadItems();showToast("ফাইল মুছে ফেলা হয়েছে");}
 let toastTimer;
