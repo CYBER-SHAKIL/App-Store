@@ -74,10 +74,14 @@ function createAdminItemRow(item){
 }
 async function downloadFile(id){
  const item=storeItems.find(x=>x.id===id);if(!item)return;
- const {data,error}=await db.storage.from("store-files").createSignedUrl(item.file_path,3600);
- if(error){showToast("ডাউনলোড লিংক তৈরি হয়নি");console.error(error);return;}
- const a=document.createElement("a");a.href=data.signedUrl;a.download=item.file_name||item.title;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
- await db.from("store_items").update({downloads:(item.downloads||0)+1}).eq("id",id);item.downloads=(item.downloads||0)+1;renderStoreItems(document.getElementById("searchInput").value);showToast("ডাউনলোড শুরু হয়েছে");
+ try{
+  const {data}=db.storage.from("store-files").getPublicUrl(item.file_path);
+  if(!data?.publicUrl)throw new Error("ডাউনলোড URL পাওয়া যায়নি");
+  const a=document.createElement("a");a.href=data.publicUrl;a.download=item.file_name||item.title;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
+  const result=await db.from("store_items").update({downloads:(item.downloads||0)+1}).eq("id",id);
+  if(!result.error){item.downloads=(item.downloads||0)+1;renderStoreItems(document.getElementById("searchInput").value);}
+  showToast("ডাউনলোড লিংক খোলা হয়েছে");
+ }catch(error){console.error("Public download failed:",error);showToast("ডাউনলোড ব্যর্থ: "+(error.message||"আবার চেষ্টা করুন"),"error");}
 }
 function switchTab(tab){const a=document.getElementById("appsSection"),c=document.getElementById("codesSection");a.classList.toggle("hidden",tab!=="apps");c.classList.toggle("hidden",tab!=="codes");document.getElementById("tabBtnApps").classList.toggle("tab-btn-active",tab==="apps");document.getElementById("tabBtnCodes").classList.toggle("tab-btn-active",tab==="codes");}
 function toggleSidebar(){document.getElementById("sidebar").classList.toggle("-translate-x-full");document.getElementById("sidebarOverlay").classList.toggle("hidden");}
