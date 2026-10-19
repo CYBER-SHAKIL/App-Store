@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shakil Store</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Hind+Siliguri:wght@300;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#e8fdf2',
+                            100: '#c1f9d6',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            800: '#065f46',
+                            900: '#022c22',
+                            dark: '#03140e'
+                        }
+                    },
+                    fontFamily: {
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        bangla: ['Hind Siliguri', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #03140e;
+            color: #e2e8f0;
+            font-family: 'Hind Siliguri', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism Card */
+        .glass-card {
+            background: rgba(6, 95, 70, 0.12);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(52, 211, 153, 0.5);
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+        }
+
+        /* Neon Glowing Text & Borders */
+        .glow-text {
+            text-shadow: 0 0 12px rgba(52, 211, 153, 0.8), 0 0 24px rgba(16, 185, 129, 0.5);
+        }
+
+        .glow-box {
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Cinematic Background Particles Canvas */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #03140e;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #059669;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #10b981;
+        }
+
+        /* Tab Transition Effects */
+        .tab-btn-active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff !important;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+            border-color: rgba(52, 211, 153, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- Background Canvas for Cinematic Effect -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- Header / Navbar -->
+    <header class="sticky top-0 z-40 glass-card bg-opacity-90 border-b border-brand-500/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <!-- 3 Line Toggle Menu Button -->
+                <button id="menuBtn" onclick="toggleSidebar()" class="p-2 rounded-xl bg-brand-900/80 text-brand-400 hover:text-white hover:bg-brand-600 transition duration-300 focus:outline-none border border-brand-500/40">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                <!-- Logo / Title -->
+                <a href="#" class="flex items-center space-x-2">
+                    <i class="fa-solid fa-store text-xl sm:text-2xl text-brand-400 glow-text"></i>
+                    <span class="font-orbitron text-lg sm:text-2xl font-bold tracking-wider text-white glow-text">
+                        Shakil <span class="text-brand-400">Store</span>
+                    </span>
+                </a>
+            </div>
+
+            <!-- Modern Compact Premium Tab Switcher -->
+            <div class="flex items-center p-1 rounded-full bg-brand-900/90 border border-brand-500/40 shadow-inner">
+                <button onclick="switchTab('apps')" id="tabBtnApps" class="tab-btn-active px-3 sm:px-5 py-1.5 rounded-full font-medium text-xs sm:text-sm transition-all duration-300 flex items-center gap-1.5 border border-transparent">
+                    <i class="fa-solid fa-mobile-screen-button text-xs"></i> <span>Apps</span>
+                </button>
+                <button onclick="switchTab('codes')" id="tabBtnCodes" class="px-3 sm:px-5 py-1.5 rounded-full font-medium text-xs sm:text-sm text-gray-400 hover:text-white transition-all duration-300 flex items-center gap-1.5 border border-transparent">
+                    <i class="fa-solid fa-code text-xs"></i> <span>Source Code</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sidebar / Drawer Menu for Admin Access -->
+    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/70 z-50 hidden backdrop-blur-sm transition-opacity"></div>
+    <aside id="sidebar" class="fixed top-0 left-0 w-80 h-full bg-brand-dark/95 border-r border-brand-500/30 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out p-6 flex flex-col justify-between">
+        <div>
+            <div class="flex justify-between items-center mb-8 border-b border-brand-500/20 pb-4">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-shield-halved text-brand-400 text-xl"></i>
+                    <h2 class="font-orbitron text-xl font-bold text-white">মেনু অপশন</h2>
+                </div>
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <nav class="space-y-4">
+                <button onclick="openAdminAuthModal()" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl bg-brand-600/20 hover:bg-brand-600 text-brand-400 hover:text-white border border-brand-500/30 transition duration-300">
+                    <i class="fa-solid fa-user-gear text-lg"></i>
+                    <span class="font-semibold">এডমিন প্যানেল (Admin)</span>
+                </button>
+                <div class="p-4 rounded-xl glass-card text-xs text-gray-300 space-y-2 mt-6">
+                    <p class="font-bold text-brand-400 border-b border-brand-500/30 pb-1">Shakil Store-এ স্বাগতম!</p>
+                    <p>এডমিন প্যানেল থেকে ফাইল আপলোড করলে রিয়েল-টাইমে এখানে দেখা যাবে।</p>
+                </div>
+            </nav>
+        </div>
+
+        <div class="text-center text-xs text-gray-500 border-t border-brand-500/20 pt-4">
+            &copy; 2026 Shakil Store. All Rights Reserved.
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+        
+        <!-- Search Bar -->
+        <div class="mb-8 max-w-md mx-auto">
+            <div class="relative">
+                <input type="text" id="searchInput" oninput="filterItems()" placeholder="অ্যাপস বা সোর্স কোড খুঁজুন..." class="w-full bg-brand-900/50 border border-brand-500/40 rounded-full py-2.5 pl-11 pr-4 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 transition duration-300">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-3 text-gray-400 text-sm"></i>
+            </div>
+        </div>
+
+        <!-- Section 1: APKS / APPS Tab Content -->
+        <section id="appsSection" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-500/20 pb-3">
+                <h2 class="text-xl sm:text-2xl font-bold font-orbitron text-white flex items-center gap-2">
+                    <i class="fa-solid fa-android text-brand-400"></i> অ্যান্ড্রয়েড অ্যাপস (APK)
+                </h2>
+                <span id="apkCount" class="text-xs bg-brand-800/80 text-brand-400 px-3 py-1 rounded-full border border-brand-500/30">Total: 0</span>
+            </div>
+
+            <!-- APKS Grid -->
+            <div id="apkGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamic Content Will Be Loaded Here -->
+            </div>
+        </section>
+
+        <!-- Section 2: SOURCE CODE / ZIP Tab Content -->
+        <section id="codesSection" class="space-y-6 hidden">
+            <div class="flex items-center justify-between border-b border-brand-500/20 pb-3">
+                <h2 class="text-xl sm:text-2xl font-bold font-orbitron text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-code text-brand-400"></i> সোর্স কোড ও ফাইলস
+                </h2>
+                <span id="codeCount" class="text-xs bg-brand-800/80 text-brand-400 px-3 py-1 rounded-full border border-brand-500/30">Total: 0</span>
+            </div>
+
+            <!-- Source Code Grid -->
+            <div id="codeGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamic Content Will Be Loaded Here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-card mt-12 border-t border-brand-500/30 bg-brand-dark/95">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                
+                <div class="text-center md:text-left space-y-1">
+                    <div class="flex items-center justify-center md:justify-start space-x-2">
+                        <i class="fa-solid fa-store text-brand-400 text-lg"></i>
+                        <span class="font-orbitron font-bold text-base text-white">Shakil Store</span>
+                    </div>
+                    <p class="text-xs text-gray-400">অরিজিনাল অ্যান্ড্রয়েড অ্যাপস এবং সোর্স কোড হাব।</p>
+                </div>
+
+                <!-- Social Links Grid with Active Redirection -->
+                <div id="socialLinksContainer" class="flex flex-wrap justify-center gap-3">
+                    <a id="linkYoutube" href="https://www.youtube.com/@ShakilX9X" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white border border-red-500/30 transition duration-300 text-xs font-semibold">
+                        <i class="fa-brands fa-youtube text-base"></i>
+                        <span>YouTube</span>
+                    </a>
+                    <a id="linkTelegram" href="https://t.me/Shakil_X9X" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-sky-500/20 text-sky-400 hover:bg-sky-500 hover:text-white border border-sky-500/30 transition duration-300 text-xs font-semibold">
+                        <i class="fa-brands fa-telegram text-base"></i>
+                        <span>Telegram</span>
+                    </a>
+                    <a id="linkTiktok" href="https://tiktok.com/@shakil.5090" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-pink-500/20 text-pink-400 hover:bg-pink-500 hover:text-white border border-pink-500/30 transition duration-300 text-xs font-semibold">
+                        <i class="fa-brands fa-tiktok text-base"></i>
+                        <span>TikTok</span>
+                    </a>
+                    <a id="linkFacebook" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-500/30 transition duration-300 text-xs font-semibold">
+                        <i class="fa-brands fa-facebook text-base"></i>
+                        <span>Facebook</span>
+                    </a>
+                </div>
+
+            </div>
+            
+            <div class="border-t border-brand-500/20 mt-6 pt-4 text-center text-[11px] text-gray-500">
+                Developed for Shakil Store &bull; All Rights Reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- ADMIN LOGIN MODAL -->
+    <div id="adminAuthModal" class="fixed inset-0 bg-black/80 z-50 hidden backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-2xl p-6 relative border border-brand-500/40">
+            <button onclick="closeAdminAuthModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <div class="text-center mb-6">
+                <div class="w-14 h-14 bg-brand-500/20 rounded-full flex items-center justify-center mx-auto mb-3 border border-brand-400/30">
+                    <i class="fa-solid fa-lock text-xl text-brand-400 glow-text"></i>
+                </div>
+                <h3 class="font-orbitron text-lg font-bold text-white">এডমিন প্রবেশের অনুমতি</h3>
+                <p class="text-xs text-gray-400 mt-1">পাসওয়ার্ড প্রদান করে লগইন করুন</p>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-1">এডমিন ইমেইল</label>
+                    <input type="email" id="adminAuthEmail" autocomplete="username" placeholder="admin@example.com" required class="w-full mb-3 bg-brand-900/60 border border-brand-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400">
+                    <label class="block text-xs font-medium text-gray-300 mb-1">এডমিন পাসওয়ার্ড</label>
+                    <input type="password" id="adminAuthPass" autocomplete="current-password" placeholder="পাসওয়ার্ড লিখুন..." required class="w-full bg-brand-900/60 border border-brand-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400">
+                </div>
+                <p id="authErrorMsg" class="text-xs text-red-400 hidden flex items-center gap-1">
+                    <i class="fa-solid fa-circle-exclamation"></i> ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।
+                </p>
+                <button type="submit" class="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold py-2.5 rounded-xl shadow-lg transition duration-300 glow-box text-sm">
+                    লগইন করুন
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN ADMIN DASHBOARD MODAL -->
+    <div id="adminDashboardModal" class="fixed inset-0 bg-black/90 z-50 hidden backdrop-blur-lg overflow-y-auto p-4 sm:p-6">
+        <div class="max-w-5xl mx-auto glass-card rounded-2xl p-5 sm:p-7 my-6 border border-brand-500/50">
+            
+            <!-- Dashboard Header -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-brand-500/30 pb-4 mb-6 gap-3">
+                <div>
+                    <h2 class="font-orbitron text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-brand-400"></i> Shakil Store এডমিন প্যানেল
+                    </h2>
+                    <p class="text-xs text-gray-400">এখান থেকে ফাইল আপলোড, এডিট, ডিলিট এবং সোশ্যাল লিঙ্ক পরিবর্তন করুন।</p>
+                </div>
+                <button onclick="closeAdminDashboard()" class="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold transition">
+                    <i class="fa-solid fa-right-from-bracket"></i> প্রস্থান
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Left Column: Settings -->
+                <div class="space-y-5">
+                    
+                    <!-- Change Password Card -->
+                    <div class="bg-brand-dark/70 p-4 rounded-xl border border-brand-500/30">
+                        <h3 class="font-bold text-brand-400 text-sm mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-key"></i> পাসওয়ার্ড পরিবর্তন
+                        </h3>
+                        <form onsubmit="handleChangePassword(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-[11px] text-gray-300">নতুন পাসওয়ার্ড</label>
+                                <input type="text" id="newAdminPass" placeholder="নতুন পাসওয়ার্ড দিন..." required class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-400">
+                            </div>
+                            <button type="submit" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-2 rounded-lg text-xs transition">
+                                সেভ করুন
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Manage Social Links -->
+                    <div class="bg-brand-dark/70 p-4 rounded-xl border border-brand-500/30">
+                        <h3 class="font-bold text-brand-400 text-sm mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-share-nodes"></i> সোশ্যাল লিঙ্ক আপডেট
+                        </h3>
+                        <form onsubmit="handleSaveSocials(event)" class="space-y-2.5">
+                            <div>
+                                <label class="block text-[11px] text-gray-300">YouTube Channel Link</label>
+                                <input type="url" id="inputYoutube" class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-1.5 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-gray-300">Telegram Link</label>
+                                <input type="url" id="inputTelegram" class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-1.5 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-gray-300">TikTok Link</label>
+                                <input type="url" id="inputTiktok" class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-1.5 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-gray-300">Facebook Link</label>
+                                <input type="url" id="inputFacebook" placeholder="খালি রাখতে পারেন" class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-1.5 text-xs text-white">
+                            </div>
+                            <button type="submit" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-2 rounded-lg text-xs transition mt-2">
+                                লিঙ্ক আপডেট করুন
+                            </button>
+                        </form>
+                    </div>
+
+                </div>
+
+                <!-- Right Column: Upload & Edit/Delete Management -->
+                <div class="lg:col-span-2 space-y-5">
+                    
+                    <!-- Upload or Edit Item Form Panel -->
+                    <div class="bg-brand-dark/70 p-4 sm:p-5 rounded-xl border border-brand-500/30">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 id="formPanelTitle" class="font-bold text-brand-400 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> নতুন ফাইল আপলোড করুন
+                            </h3>
+                            <button id="cancelEditBtn" onclick="resetFormState()" class="hidden text-[11px] bg-gray-700 hover:bg-gray-600 text-white px-2.5 py-1 rounded-lg">
+                                <i class="fa-solid fa-rotate-left"></i> এডিট বাতিল
+                            </button>
+                        </div>
+
+                        <form onsubmit="handleItemUploadOrUpdate(event)" class="space-y-3">
+                            <input type="hidden" id="editingItemId" value="">
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] text-gray-300 mb-1">ক্যাটাগরি</label>
+                                    <select id="uploadType" class="w-full bg-brand-900/80 border border-brand-500/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-400">
+                                        <option value="apk">APK (App)</option>
+                                        <option value="code">Source Code (Zip/HTML)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-gray-300 mb-1">অ্যাপ বা ফাইলের নাম</label>
+                                    <input type="text" id="uploadTitle" placeholder="যেমন: My Custom App" required class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-2 text-xs text-white">
+                                </div>
+                            </div>
+
+                            <!-- Icon URL or Local Image Selector -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] text-gray-300 mb-1">অ্যাপ আইকন (ছবি নির্বাচন করুন)</label>
+                                    <input type="file" id="uploadIconFile" accept="image/*" class="w-full text-[11px] text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:bg-brand-700 file:text-white hover:file:bg-brand-600">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-gray-300 mb-1">অথবা আইকন URL</label>
+                                    <input type="url" id="uploadIconUrl" placeholder="https://example.com/icon.png" class="w-full bg-brand-900/60 border border-brand-500/30 rounded-lg px-3 py-2 text-xs text-white">
+                                </div>
+                            </div>
+
+                            <!-- File Attachment Option -->
+                            <div class="p-3 bg-brand-900/40 rounded-xl border border-dashed border-brand-500/40">
+                                <label class="block text-xs text-brand-400 font-bold mb-1" id="fileAttachLabel">ফাইল যুক্ত করুন (APK, ZIP, HTML)</label>
+                                <input type="file" id="uploadFileAttachment" class="w-full text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-brand-500 file:text-white hover:file:bg-brand-600 transition">
+                                <p class="text-[10px] text-gray-400 mt-1" id="fileEditNote">* আসল ফাইল ব্রাউজার ডাটায় সেভ থাকবে।</p>
+                            </div>
+
+                            <button type="submit" id="uploadSubmitBtn" class="w-full bg-brand-500 hover:bg-brand-400 text-white font-bold py-2 rounded-xl transition glow-box flex items-center justify-center gap-2 text-xs">
+                                <i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Uploaded Items List with Edit/Delete Actions -->
+                    <div class="bg-brand-dark/70 p-4 rounded-xl border border-brand-500/30">
+                        <h3 class="font-bold text-brand-400 text-sm mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check"></i> ফাইলের তালিকা (এডিট ও ডিলিট অপশন)
+                        </h3>
+                        <div id="adminItemsList" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                            <!-- Dynamically Managed Items -->
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- UI Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-brand-500 text-white px-5 py-2.5 rounded-xl shadow-2xl z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-2.5 border border-white/20 text-xs sm:text-sm">
+        <i class="fa-solid fa-circle-check text-lg"></i>
+        <span id="toastMsg" class="font-semibold">কাজ সম্পন্ন হয়েছে!</span>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>
