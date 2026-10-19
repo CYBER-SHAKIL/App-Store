@@ -199,6 +199,8 @@ function startEditingItem(id){
  document.getElementById("uploadTitle").value=editingItem.title;
  document.getElementById("uploadIconUrl").value=editingItem.icon_url||"";
  document.getElementById("removeIconCheckbox").checked=false;
+ const removeIconWrap=document.getElementById("removeIconOptionContainer");
+ removeIconWrap.classList.toggle("hidden",editingItem.type!=="apk");
  document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-pen-to-square"></i> এডিট করছেন: '+escapeHtml(editingItem.title);
  document.getElementById("cancelEditBtn").classList.remove("hidden");
  document.getElementById("uploadSubmitBtn").innerHTML="পরিবর্তন সেভ করুন";
@@ -214,6 +216,7 @@ function resetFormState(){
  document.getElementById("uploadIconFile").value="";
  document.getElementById("uploadFileAttachment").value="";
  document.getElementById("removeIconCheckbox").checked=false;
+ document.getElementById("removeIconOptionContainer").classList.add("hidden");
  document.getElementById("formPanelTitle").innerHTML='<i class="fa-solid fa-cloud-arrow-up"></i> নতুন ফাইল আপলোড করুন';
  document.getElementById("cancelEditBtn").classList.add("hidden");
  document.getElementById("uploadSubmitBtn").innerHTML='<i class="fa-solid fa-plus"></i> আপলোড ও প্রকাশ করুন';
