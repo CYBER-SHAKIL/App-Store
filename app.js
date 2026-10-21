@@ -1,7 +1,7 @@
 /* Shakil Store — Supabase-backed public catalog */
 const SUPABASE_URL = "https://xqdzavnoyfuglquhjuqg.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_IaTsiI3f_IyQqaBBCbd_tA_pKqX4feb";
-const ADMIN_EMAIL = "mdshakil162025@gmail.com";
+const ADMIN_EMAIL = "shakil.dev.pro@gmail.com";
 const ADMIN_UID = "JrBaN7xoamPaLH9fefOSi1vZ5343";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB3nsJhE6zdnYY8e9I5ZA1knkcCkZcF9UU",
