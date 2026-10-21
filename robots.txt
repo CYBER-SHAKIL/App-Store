@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://shakil-apk-store.vercel.app/sitemap.xml
