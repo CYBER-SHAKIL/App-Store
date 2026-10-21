@@ -2,6 +2,7 @@
 const SUPABASE_URL = "https://xqdzavnoyfuglquhjuqg.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_IaTsiI3f_IyQqaBBCbd_tA_pKqX4feb";
 const ADMIN_EMAIL = "mdshakil162025@gmail.com";
+const ADMIN_UID = "JrBaN7xoamPaLH9fefOSi1vZ5343";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB3nsJhE6zdnYY8e9I5ZA1knkcCkZcF9UU",
   authDomain: "shakil-dev-pro.firebaseapp.com",
@@ -168,10 +169,9 @@ async function handleAdminLogin(e){
    msg.innerText="পাসওয়ার্ড পরিবর্তন হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।";
    return;
   }
-  if(email!==ADMIN_EMAIL)throw new Error("এই ইমেইলে Admin অনুমতি নেই।");
   await firebaseAuth.signInWithEmailAndPassword(email,password);
   const user=firebaseAuth.currentUser;
-  if(!user||user.email?.toLowerCase()!==ADMIN_EMAIL){
+  if(!user||user.uid!==ADMIN_UID){
    await firebaseAuth.signOut();
    throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
   }
@@ -245,8 +245,8 @@ async function handleItemUploadOrUpdate(e){
  try{
   const adminUser=firebaseAuth.currentUser;
   if(!adminUser)throw new Error("আগে Admin লগইন করুন");
-  if((adminUser.email||"").toLowerCase()!==ADMIN_EMAIL)throw new Error("এই অ্যাকাউন্টে Admin অনুমতি নেই।");
-  // Refresh Firebase ID token before a database write so the email claim used by the RLS policy is current.
+  if(adminUser.uid!==ADMIN_UID)throw new Error("এই Firebase UID-তে Admin অনুমতি নেই।");
+  // Refresh Firebase ID token before a database write so the UID/email claims used by the RLS policy are current.
   await adminUser.getIdToken(true);
   const old=id?storeItems.find(x=>x.id===id):null;
   if(id&&!old)throw new Error("এডিট করার ফাইলটি তালিকায় পাওয়া যায়নি। পেজ Refresh করে আবার চেষ্টা করুন।");
